@@ -39,6 +39,7 @@ type File struct {
 	Tagger
 	originalSize int
 	file         *os.File
+	readOnly     bool
 }
 
 // Opens a new tagged file
@@ -48,8 +49,33 @@ func Open(name string) (*File, error) {
 		return nil, err
 	}
 
-	file := &File{file: fi}
+	file := &File{
+		file:     fi,
+		readOnly: false,
+	}
 
+	file, err = commonOpen(file, fi)
+
+	return file, err
+}
+
+func OpenReadOnly(name string) (*File, error) {
+	fi, err := os.OpenFile(name, os.O_RDONLY, 0000)
+	if err != nil {
+		return nil, err
+	}
+
+	file := &File{
+		file:     fi,
+		readOnly: true,
+	}
+
+	file, err = commonOpen(file, fi)
+
+	return file, err
+}
+
+func commonOpen(file *File, fi *os.File) (*File, error) {
 	if v2Tag := v2.ParseTag(fi); v2Tag != nil {
 		file.Tagger = v2Tag
 		file.originalSize = v2Tag.Size()
@@ -65,6 +91,10 @@ func Open(name string) (*File, error) {
 // Saves any edits to the tagged file
 func (f *File) Close() error {
 	defer f.file.Close()
+
+	if f.readOnly {
+		return nil
+	}
 
 	switch f.Tagger.(type) {
 	case (*v1.Tag):
